@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,6 +38,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
@@ -65,6 +68,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.window.core.layout.WindowWidthSizeClass
 import kotlinx.coroutines.delay
 import ua.edu.chnu.kkn.pagercomponentexample.theme.FitPulseColors
 import ua.edu.chnu.kkn.pagercomponentexample.ui.BadgeId
@@ -107,13 +111,284 @@ fun LoginScreen(
         }
     }
 
-    LoginScreenContent(
-        state = state,
-        onIntent = viewModel::processIntent,
-        toastMessage = toastMessage,
-        modifier = modifier
-    )
+    // WindowSizeClass для адаптивної розмітки
+    val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
+    val widthClass = windowSizeClass.windowWidthSizeClass
+    val isExpanded = widthClass == WindowWidthSizeClass.EXPANDED
+    val isMedium = widthClass == WindowWidthSizeClass.MEDIUM
+
+    when {
+        // Expanded (планшет горизонтально ≥840dp, десктоп): двоколонковий layout
+        isExpanded -> LoginExpandedLayout(
+            state = state,
+            onIntent = viewModel::processIntent,
+            toastMessage = toastMessage,
+            modifier = modifier
+        )
+
+        // Medium (≥600dp): контент обмежений та центрований
+        isMedium -> LoginMediumLayout(
+            state = state,
+            onIntent = viewModel::processIntent,
+            toastMessage = toastMessage,
+            modifier = modifier
+        )
+
+        // Compact (< 600dp): стандартний повноекранний layout
+        else -> LoginScreenContent(
+            state = state,
+            onIntent = viewModel::processIntent,
+            toastMessage = toastMessage,
+            modifier = modifier
+        )
+    }
 }
+
+// ─────────────────────────────────────────────────────────
+// Medium Layout — контент обмежений 560dp, центрований (600–840dp)
+// ─────────────────────────────────────────────────────────
+@Composable
+fun LoginMediumLayout(
+    state: AuthState,
+    onIntent: (AuthIntent) -> Unit,
+    toastMessage: String? = null,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(FitPulseColors.Background),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        LoginScreenContent(
+            state = state,
+            onIntent = onIntent,
+            toastMessage = toastMessage,
+            modifier = Modifier.width(560.dp)
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Expanded Layout — два стовпці: ліворуч мотиваційна панель, праворуч форма (≥840dp)
+// ─────────────────────────────────────────────────────────
+@Composable
+fun LoginExpandedLayout(
+    state: AuthState,
+    onIntent: (AuthIntent) -> Unit,
+    toastMessage: String? = null,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxSize()
+            .background(FitPulseColors.Background)
+    ) {
+        // ═══ Ліва колонка: мотиваційна панель (45%) ═══
+        LoginBrandPanel(
+            isUkrainian = state.isUkrainian,
+            modifier = Modifier
+                .fillMaxHeight()
+                .weight(0.45f)
+        )
+
+        // Вертикальний роздільник
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(1.dp)
+                .background(FitPulseColors.SurfaceContainerHighest.copy(alpha = 0.4f))
+        )
+
+        // ═══ Права колонка: форма логіну (55%) ═══
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .weight(0.55f),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            LoginScreenContent(
+                state = state,
+                onIntent = onIntent,
+                toastMessage = toastMessage,
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(480.dp)
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Мотиваційна бренд-панель (ліва частина Expanded layout)
+// ─────────────────────────────────────────────────────────
+@Composable
+private fun LoginBrandPanel(
+    isUkrainian: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition()
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
+    Column(
+        modifier = modifier
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        FitPulseColors.SurfaceContainerLowest,
+                        FitPulseColors.SurfaceContainer,
+                        FitPulseColors.SurfaceContainerHigh
+                    )
+                )
+            )
+            .padding(40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Live indicator
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(FitPulseColors.PrimaryContainer)
+                    .alpha(pulseAlpha)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "SYSTEM ONLINE",
+                color = FitPulseColors.PrimaryContainer,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.5.sp
+            )
+        }
+
+        Spacer(Modifier.height(32.dp))
+
+        // Логотип
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .background(FitPulseColors.SurfaceContainerHighest, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .background(FitPulseColors.PrimaryContainer, CircleShape)
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Row {
+                    Text(
+                        text = "FIT",
+                        color = FitPulseColors.PrimaryContainer,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 2.sp
+                    )
+                    Text(
+                        text = "PULSE",
+                        color = FitPulseColors.TextPrimary,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 2.sp
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(40.dp))
+
+        // Мотиваційна цитата
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(FitPulseColors.SurfaceCard)
+                .border(
+                    BorderStroke(1.dp, FitPulseColors.SurfaceContainerHighest.copy(alpha = 0.5f)),
+                    RoundedCornerShape(16.dp)
+                )
+                .padding(24.dp)
+        ) {
+            Column {
+                Text(
+                    text = "\"",
+                    color = FitPulseColors.PrimaryContainer,
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Black,
+                    lineHeight = 32.sp
+                )
+                Text(
+                    text = if (isUkrainian) {
+                        "Кожне тренування — це крок до кращої версії себе"
+                    } else {
+                        "Every workout is a step toward a better version of yourself"
+                    },
+                    color = FitPulseColors.TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontStyle = FontStyle.Italic,
+                    lineHeight = 26.sp
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "— FitPulse Digital Core",
+                    color = FitPulseColors.TextSecondary,
+                    fontSize = 13.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+
+        Spacer(Modifier.height(32.dp))
+
+        // Статистичні теги
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            listOf(
+                (if (isUkrainian) "12k+ Атлетів" else "12k+ Athletes"),
+                (if (isUkrainian) "98% Uptime" else "98% Uptime"),
+                "API V4"
+            ).forEach { tag ->
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(FitPulseColors.SurfaceContainerHigh)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = tag,
+                        color = FitPulseColors.TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+    }
+}
+
 
 @Composable
 fun LoginScreenContent(
@@ -147,7 +422,6 @@ fun LoginScreenContent(
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Navigation Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -155,7 +429,6 @@ fun LoginScreenContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Circular Back Button
                 Box(
                     modifier = Modifier
                         .size(42.dp)
@@ -172,7 +445,6 @@ fun LoginScreenContent(
                     )
                 }
 
-                // FitPulse Center Brand
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -213,7 +485,6 @@ fun LoginScreenContent(
                     }
                 }
 
-                // Language Toggle Pill UA / EN
                 Row(
                     modifier = Modifier
                         .clip(CircleShape)
@@ -259,7 +530,6 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Hero Security Protocol Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -299,7 +569,6 @@ fun LoginScreenContent(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Title: Вхід до кабінету атлета
                     Row {
                         Text(
                             text = if (isUkrainian) "Вхід до кабінету " else "Athlete cabinet ",
@@ -317,7 +586,6 @@ fun LoginScreenContent(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Subtitle
                     Text(
                         text = if (isUkrainian) {
                             "Увійдіть для миттєвого доступу до абонемента, персонального розкладу та живої телеметрії комплексу."
@@ -331,7 +599,6 @@ fun LoginScreenContent(
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Bottom Status Row (Turnstile Pass & Zona A)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -369,7 +636,6 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Field 1: EMAIL / ТЕЛЕФОН / ID АТЛЕТА
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = if (isUkrainian) "EMAIL / ТЕЛЕФОН / ID АТЛЕТА" else "EMAIL / PHONE / ATHLETE ID",
@@ -453,7 +719,6 @@ fun LoginScreenContent(
                     }
                 }
 
-                // Error validation message
                 if (state.usernameError != null) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -468,7 +733,6 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Field 2: ПАРОЛЬ ДОСТУПУ
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -581,7 +845,6 @@ fun LoginScreenContent(
                     }
                 }
 
-                // Error validation message
                 if (state.passwordError != null) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -596,7 +859,6 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Row: Remember me checkbox + Forgot password link
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -655,7 +917,6 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Primary Action: Увійти до системи ➔
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -700,7 +961,6 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(22.dp))
 
-            // Divider: АБО УВІЙТИ ЧЕРЕЗ
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -731,7 +991,6 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Social Button: Продовжити з Google
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -769,7 +1028,6 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Motivational Quote & Core Branding
             Text(
                 text = if (isUkrainian) {
                     "«Кожне тренування — це крок до кращої версії себе»"
@@ -800,7 +1058,6 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Bottom SSO Badge
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -827,7 +1084,6 @@ fun LoginScreenContent(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Animated Notification / Toast banner
         AnimatedVisibility(
             visible = toastMessage != null,
             enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),

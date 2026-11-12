@@ -81,7 +81,6 @@ fun App() {
                                     backStack.add(AppRoute.Onboarding)
                                 },
                                 onLoginSuccess = {
-                                    // Successfully logged in
                                 }
                             )
                         }

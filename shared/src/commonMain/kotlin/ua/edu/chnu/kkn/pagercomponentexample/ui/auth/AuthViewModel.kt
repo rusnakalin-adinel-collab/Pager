@@ -103,7 +103,6 @@ class AuthViewModel(
         var usernameError: String? = null
         var passwordError: String? = null
 
-        // 1. Username/Email/ID validation
         if (username.isBlank()) {
             hasError = true
             usernameError = if (isUa) {
@@ -112,28 +111,24 @@ class AuthViewModel(
                 "Enter email, phone, or athlete ID"
             }
         } else if (username.contains("@")) {
-            // Email format check
             val emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$".toRegex()
             if (!emailRegex.matches(username)) {
                 hasError = true
                 usernameError = if (isUa) "Некоректний формат email" else "Invalid email format"
             }
         } else if (username.startsWith("+") || username.all { it.isDigit() }) {
-            // Phone format check
             val digitsOnly = username.filter { it.isDigit() }
             if (digitsOnly.length < 10) {
                 hasError = true
                 usernameError = if (isUa) "Номер телефону закороткий" else "Phone number is too short"
             }
         } else {
-            // Athlete ID check
             if (username.length < 3) {
                 hasError = true
                 usernameError = if (isUa) "ID атлета мін. 3 символи" else "Athlete ID min. 3 characters"
             }
         }
 
-        // 2. Password validation (min 6 characters as required)
         if (password.isBlank()) {
             hasError = true
             passwordError = if (isUa) {
@@ -160,7 +155,6 @@ class AuthViewModel(
             return
         }
 
-        // Valid submission
         _state.update {
             it.copy(
                 isLoading = true,
